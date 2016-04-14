@@ -7,9 +7,6 @@ import argparse
 import sys
 from xml.etree import ElementTree
 
-from cryptography.exceptions import InvalidSignature
-from signxml import xmldsig
-
 
 def _strip_whitespace(s):
     return "".join(s.split())
@@ -81,6 +78,10 @@ if __name__ == "__main__":
     md_data = args.metadata_file.read()
 
     if args.verify_with:
+
+        from cryptography.exceptions import InvalidSignature
+        from signxml import xmldsig
+
         cert = args.verify_with.read()
         try:
             xmldsig(md_data).verify(x509_cert=cert)
