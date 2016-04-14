@@ -3,47 +3,85 @@
 # Parse InCommon metadata to locate the ECP single sign on service
 # of an IDP associated with a given scope.
 
+import argparse
 import sys
-import xml.etree.ElementTree as ElementTree
+from xml.etree import ElementTree
 
-IDP_XPATH = "{urn:oasis:names:tc:SAML:2.0:metadata}EntityDescriptor/{urn:oasis:names:tc:SAML:2.0:metadata}IDPSSODescriptor"
-SCOPE_XPATH = "{urn:oasis:names:tc:SAML:2.0:metadata}Extensions/{urn:mace:shibboleth:metadata:1.0}Scope"
-SSO_XPATH = "{urn:oasis:names:tc:SAML:2.0:metadata}SingleSignOnService"
-DISPLAY_NAME_XPATH = "{urn:oasis:names:tc:SAML:2.0:metadata}Extensions/{urn:oasis:names:tc:SAML:metadata:ui}UIInfo/{urn:oasis:names:tc:SAML:metadata:ui}DisplayName"
-ECP_BINDING = "urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
 
-def idp_matches_scope(idp, scope):
-    return bool([s for s in idp.findall(SCOPE_XPATH) if s.text == scope])
+def _strip_whitespace(s):
+    return "".join(s.split())
 
-def find_idps(tree, scope):
-    return [idp for idp in tree.findall(IDP_XPATH) if idp_matches_scope(idp, scope)]
 
-def idp_ecp_sso_locations(idp):
-    return [s.get("Location") for s in idp.findall(SSO_XPATH) if s.get("Binding") == ECP_BINDING]
+class IDPDescriptor:
 
-def idp_display_name(idp):
-    try:
-        return idp.find(DISPLAY_NAME_XPATH).text
-    except:
-        return None
+    DISPLAY_NAME_XPATH = _strip_whitespace("""
+        {urn:oasis:names:tc:SAML:2.0:metadata}Extensions/
+        {urn:oasis:names:tc:SAML:metadata:ui}UIInfo/
+        {urn:oasis:names:tc:SAML:metadata:ui}DisplayName
+        """)
+
+    SSO_XPATH = "{urn:oasis:names:tc:SAML:2.0:metadata}SingleSignOnService"
+
+    ECP_BINDING = "urn:oasis:names:tc:SAML:2.0:bindings:SOAP"
+
+    def __init__(self, idp_element):
+        self._idp_element = idp_element
+
+    def display_name(self):
+        display_name_element = self._idp_element.find(self.DISPLAY_NAME_XPATH)
+        try:
+            return display_name_element.text
+        except AttributeError:
+            return None
+
+    def ecp_sso_locations(self):
+        return [s.get("Location") for s in self._idp_element.findall(self.SSO_XPATH) if s.get("Binding") == self.ECP_BINDING]
+
+
+class InCommonMetadata:
+
+    IDP_XPATH = _strip_whitespace("""
+        {urn:oasis:names:tc:SAML:2.0:metadata}EntityDescriptor/
+        {urn:oasis:names:tc:SAML:2.0:metadata}IDPSSODescriptor
+        """)
+
+    SCOPE_XPATH = _strip_whitespace("""
+        {urn:oasis:names:tc:SAML:2.0:metadata}Extensions/
+        {urn:mace:shibboleth:metadata:1.0}Scope
+        """)
+
+    def __init__(self, metadata):
+        self._md_tree = ElementTree.fromstring(metadata)
+
+    def _idp_matches_scope(self, idp_element, scope):
+        return bool([s for s in idp_element.findall(self.SCOPE_XPATH) if s.text == scope])
+
+    def idps_matching_scope(self, scope):
+        return [IDPDescriptor(idpe) for idpe in self._md_tree.findall(self.IDP_XPATH) if self._idp_matches_scope(idpe, scope)]
+
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: ecp-discover.py metadata_path scope", file=sys.stderr)
 
-    metadata_path = sys.argv[1]
-    scope = sys.argv[2]
-    tree = ElementTree.parse(metadata_path)
-    idps = find_idps(tree, scope)
-    print("Found", len(idps), "IDP(s) matching scope", scope)
+    parser = argparse.ArgumentParser(description="Locate an ECP SSO endpoint based on a user's scope")
+    parser.add_argument("metadata_file",
+                        help="Path to InCommon metadata file",
+                        type=argparse.FileType("r"))
+    parser.add_argument("scope",
+                        help="Scope of user's EPPN")
+
+    args = parser.parse_args()
+
+    md = InCommonMetadata(args.metadata_file.read())
+    idps = md.idps_matching_scope(args.scope)
+
+    print("Found %d IDP(s) matching scope '%s'" % (len(idps), args.scope), file=sys.stderr)
     for idp in idps:
-        print(idp_display_name(idp))
-        locations = idp_ecp_sso_locations(idp)
+        display_name = idp.display_name()
+        print(display_name, file=sys.stderr)
+        locations = idp.ecp_sso_locations()
         if locations:
-            print("ECP SSO service locations:")
             for url in locations:
-                print(url)
+                print("%s: %s" % (display_name, url))
         else:
-            print("No ECP SSO service found")
-
-        print("")
+            print("No ECP SSO service found", file=sys.stderr)
+            sys.exit(1)
