@@ -1,0 +1,13 @@
+certifi==2016.2.28
+cffi==1.5.2
+cryptography==1.2.3
+defusedxml==0.4.1
+eight==0.3.3
+future==0.15.2
+idna==2.1
+lxml==3.4.4
+pyasn1==0.1.9
+pycparser==2.14
+pyOpenSSL==0.15.1
+signxml==1.0.0
+six==1.10.0
