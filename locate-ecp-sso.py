@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Parse InCommon metadata to locate the ECP single sign on service
+# Parse federation metadata to locate the ECP single sign on service
 # of an IDP associated with a given scope.
 
 import argparse
@@ -41,7 +41,7 @@ class IDPDescriptor:
         return [s.get("Location") for s in self._idp_element.findall(self.SSO_XPATH) if s.get("Binding") == self.ECP_BINDING]
 
 
-class InCommonMetadata:
+class FederationMetadata:
 
     IDP_XPATH = _strip_whitespace("""
         {urn:oasis:names:tc:SAML:2.0:metadata}EntityDescriptor/
@@ -67,13 +67,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Locate an ECP SSO endpoint based on a user's scope")
     parser.add_argument("metadata_file",
-                        help="Path to InCommon metadata file",
+                        help="Path to federation metadata file",
                         type=argparse.FileType("rb"))
     parser.add_argument("scope",
                         help="Scope of user's EPPN")
     parser.add_argument("--verify-with",
                         help="Path to certificate file to validate metadata file with",
-                        metavar="incommon-cert",
+                        metavar="certificate_file",
                         type=argparse.FileType("r"))
 
     args = parser.parse_args()
@@ -88,7 +88,7 @@ if __name__ == "__main__":
             print("Metadata signature invalid", file=sys.stderr)
             sys.exit(2)
 
-    md = InCommonMetadata(md_data)
+    md = FederationMetadata(md_data)
     idps = md.idps_matching_scope(args.scope)
 
     print("Found %d IDP(s) matching scope '%s'" % (len(idps), args.scope), file=sys.stderr)
