@@ -25,3 +25,8 @@ optional arguments:
   --verify-with certificate_file
                         Path to certificate file to verify metadata file with
 ```
+
+## References
+
+* [InCommon metadata consumption](https://spaces.internet2.edu/display/InCFederation/Metadata+Consumption)
+* [InCommon signing certificate](https://spaces.internet2.edu/display/InCFederation/Metadata+Signing+Certificate)
